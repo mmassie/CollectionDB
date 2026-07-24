@@ -15,6 +15,9 @@ offline after the first load.
   (leave the `Barcode` column empty) and clicking **Reload**.
 - **Local cover cache**: album art is downloaded once into `covers/` and served
   from disk thereafter.
+- **Tracklists**: click an album to see its tracklist, fetched from
+  [MusicBrainz](https://musicbrainz.org/) (no API key needed) and cached in
+  `trackcache/`.
 - **Die Roll**: pick a random album to play next.
 - **LAN access**: reachable from your phone on the same Wi-Fi.
 
@@ -72,6 +75,7 @@ scan from a phone on the same network.
 | File                     | Purpose                                        |
 | ------------------------ | ---------------------------------------------- |
 | `barcode_lookup_app.html`| The single-page app (UI + client logic).       |
-| `server.js`              | Static server + `/api/lookup`, `/api/albums`, `/cover`. |
+| `server.js`              | Static server + `/api/lookup`, `/api/albums`, `/api/tracks`, `/cover`. |
 | `VinylScans.csv`         | Your collection (git-ignored, auto-created).   |
 | `covers/`                | Local cover-image cache (git-ignored).         |
+| `trackcache/`            | Local tracklist cache (git-ignored).           |

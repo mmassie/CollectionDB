@@ -252,6 +252,21 @@
     #modalArtist { color: var(--text-sub); margin-top: 6px; font-size: 14px; }
     .modal-content .btn { margin-top: 22px; }
 
+    .tracks { margin-top: 16px; text-align: left; max-height: 240px; overflow-y: auto; }
+    .tracks .t-status { color: var(--text-sub); font-size: 13px; text-align: center; padding: 8px 0; }
+    .tracks ol { margin: 0; padding: 0; list-style: none; }
+    .tracks li {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 7px 4px; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .tracks li .tt { color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tracks li .tl { color: var(--text-sub); flex: none; font-variant-numeric: tabular-nums; }
+    .tracks .disc {
+      color: var(--green-hover); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em; margin: 12px 0 4px;
+    }
+
     @media (max-width: 640px) {
       .topbar { flex-wrap: wrap; }
       .search { order: 3; max-width: none; flex-basis: 100%; }
@@ -292,6 +307,7 @@
       <img id="modalImg" />
       <div id="modalTitle"></div>
       <div id="modalArtist"></div>
+      <div id="modalTracks" class="tracks"></div>
       <button class="btn primary" onclick="closeModal()">Close</button>
     </div>
   </div>
@@ -544,10 +560,69 @@ function showModal(item) {
   document.getElementById("modalTitle").innerText = item.title;
   document.getElementById("modalArtist").innerText = item.artist || "";
   document.getElementById("modal").style.display = "flex";
+  loadTracks(item);
 }
 
 function closeModal() {
   document.getElementById("modal").style.display = "none";
+}
+
+// ---------- Tracklist (via MusicBrainz, cached server-side) ----------
+
+let tracksReqId = 0;
+
+async function loadTracks(item) {
+  const box = document.getElementById("modalTracks");
+  const myReq = ++tracksReqId;
+  box.innerHTML = '<div class="t-status">Loading tracks…</div>';
+
+  const params = new URLSearchParams();
+  if (item.code) params.set("barcode", item.code);
+  if (item.title) params.set("title", item.title);
+  if (item.artist && item.artist !== "N/A") params.set("artist", item.artist);
+
+  try {
+    const res = await fetch("/api/tracks?" + params.toString());
+    const data = await res.json();
+    if (myReq !== tracksReqId) return; // a newer modal opened; ignore stale result
+    if (!res.ok || !data.found || !data.tracks || !data.tracks.length) {
+      box.innerHTML = '<div class="t-status">No tracklist found.</div>';
+      return;
+    }
+    box.innerHTML = renderTracks(data.tracks);
+  } catch (err) {
+    if (myReq !== tracksReqId) return;
+    box.innerHTML = '<div class="t-status">Couldn\'t load tracks.</div>';
+  }
+}
+
+function fmtLen(ms) {
+  if (!ms) return "";
+  const s = Math.round(ms / 1000);
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+
+function renderTracks(tracks) {
+  const multiDisc = tracks.some(t => t.disc && t.disc > 1);
+  let html = "";
+  let lastDisc = null;
+  let open = false;
+  tracks.forEach(t => {
+    if (multiDisc && t.disc !== lastDisc) {
+      if (open) html += "</ol>";
+      html += `<div class="disc">Disc ${t.disc}</div><ol>`;
+      open = true;
+      lastDisc = t.disc;
+    } else if (!open) {
+      html += "<ol>";
+      open = true;
+    }
+    const num = t.number ? escapeHtml(t.number) + ". " : "";
+    html += `<li><span class="tt">${num}${escapeHtml(t.title)}</span>` +
+            `<span class="tl">${fmtLen(t.length)}</span></li>`;
+  });
+  if (open) html += "</ol>";
+  return html;
 }
 
 // Close modal when clicking the backdrop.

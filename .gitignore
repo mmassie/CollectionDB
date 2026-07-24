@@ -1,6 +1,9 @@
 # Local cover-image cache — regenerated on demand from the image URLs in the CSV
 covers/
 
+# Local tracklist cache (fetched from MusicBrainz on demand)
+trackcache/
+
 # Personal music collection data — each user builds their own by scanning
 VinylScans.csv
 scans.csv

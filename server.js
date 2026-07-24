@@ -15,7 +15,13 @@ const PORT = process.env.PORT || 8000;
 const ROOT = __dirname;
 const CSV_PATH = path.join(ROOT, "VinylScans.csv");
 const COVERS_DIR = path.join(ROOT, "covers");
+const TRACKS_DIR = path.join(ROOT, "trackcache");
 if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
+if (!fs.existsSync(TRACKS_DIR)) fs.mkdirSync(TRACKS_DIR, { recursive: true });
+
+// MusicBrainz is used to fetch tracklists (free, no API key). Their guidelines
+// require a descriptive User-Agent and no more than ~1 request/second.
+const MB_UA = "CollectionDB/1.0 ( https://github.com/mmassie/CollectionDB )";
 
 // Load KEY=VALUE pairs from a local, git-ignored .env file (if present) so a
 // plain `node server.js` works without exporting env vars every time.
@@ -89,6 +95,80 @@ function downloadImage(url, dest, redirects, cb) {
   });
   req.on("error", cb);
   req.setTimeout(15000, () => req.destroy(new Error("timeout")));
+}
+
+// ---- MusicBrainz tracklist lookup ----
+
+// GET a MusicBrainz JSON endpoint. cb(err, json).
+function mbGet(pathAndQuery, cb) {
+  const opts = {
+    hostname: "musicbrainz.org",
+    path: pathAndQuery,
+    headers: { "User-Agent": MB_UA, "Accept": "application/json" }
+  };
+  const req = https.get(opts, (res) => {
+    if (res.statusCode !== 200) { res.resume(); return cb(new Error("MB HTTP " + res.statusCode)); }
+    let data = "";
+    res.on("data", (c) => (data += c));
+    res.on("end", () => {
+      try { cb(null, JSON.parse(data)); } catch (e) { cb(e); }
+    });
+  });
+  req.on("error", cb);
+  req.setTimeout(15000, () => req.destroy(new Error("timeout")));
+}
+
+// Serialize MusicBrainz calls with a >=1.1s gap between them (their rate limit).
+let mbChain = Promise.resolve();
+function mbGetThrottled(pathAndQuery) {
+  const result = mbChain.then(() => new Promise((resolve, reject) => {
+    mbGet(pathAndQuery, (err, json) => (err ? reject(err) : resolve(json)));
+  }));
+  mbChain = result.catch(() => {}).then(() => new Promise((r) => setTimeout(r, 1100)));
+  return result;
+}
+
+// Find a tracklist for an album by barcode (preferred) or title+artist.
+async function findTracks({ barcode, title, artist }) {
+  let mbid = null;
+
+  if (barcode) {
+    // Try the barcode as-is plus UPC<->EAN-13 variants (leading zero).
+    const variants = [barcode];
+    if (/^\d{12}$/.test(barcode)) variants.push("0" + barcode);
+    if (/^0\d{12}$/.test(barcode)) variants.push(barcode.slice(1));
+    for (const b of variants) {
+      const q = "/ws/2/release?query=" + encodeURIComponent("barcode:" + b) + "&fmt=json&limit=1";
+      const search = await mbGetThrottled(q);
+      if (search.releases && search.releases.length) { mbid = search.releases[0].id; break; }
+    }
+  }
+
+  if (!mbid && title) {
+    let query = 'release:"' + title.replace(/"/g, "") + '"';
+    if (artist && artist !== "N/A") query += ' AND artist:"' + artist.replace(/"/g, "") + '"';
+    const q = "/ws/2/release?query=" + encodeURIComponent(query) + "&fmt=json&limit=1";
+    const search = await mbGetThrottled(q);
+    if (search.releases && search.releases.length) mbid = search.releases[0].id;
+  }
+
+  if (!mbid) return { found: false, tracks: [] };
+
+  const rel = await mbGetThrottled("/ws/2/release/" + mbid + "?inc=recordings&fmt=json");
+  const media = rel.media || [];
+  const tracks = [];
+  media.forEach((m, mi) => {
+    (m.tracks || []).forEach((t) => {
+      tracks.push({
+        disc: media.length > 1 ? mi + 1 : null,
+        number: t.number || String(t.position || ""),
+        title: t.title,
+        length: t.length || (t.recording && t.recording.length) || null
+      });
+    });
+  });
+
+  return { found: tracks.length > 0, matchedTitle: rel.title || null, mbid, tracks };
 }
 
 // Wrap a value as a CSV field (always quoted, "" for embedded quotes) to match
@@ -197,6 +277,36 @@ const server = http.createServer((req, res) => {
       console.error("lookup failed:", e.message);
       sendJson(res, 502, { error: "lookup request failed" });
     });
+    return;
+  }
+
+  // ---- Tracklist lookup (MusicBrainz), cached on disk ----
+  if (req.method === "GET" && req.url.startsWith("/api/tracks?")) {
+    const q = new URLSearchParams(req.url.slice(req.url.indexOf("?") + 1));
+    const barcode = (q.get("barcode") || "").trim();
+    const title = (q.get("title") || "").trim();
+    const artist = (q.get("artist") || "").trim();
+    if (!barcode && !title) return sendJson(res, 400, { error: "need barcode or title" });
+
+    const key = crypto.createHash("sha1")
+      .update(barcode || (artist + "|" + title)).digest("hex");
+    const cacheFile = path.join(TRACKS_DIR, key + ".json");
+
+    if (fs.existsSync(cacheFile)) {
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      return fs.createReadStream(cacheFile).pipe(res);
+    }
+
+    findTracks({ barcode, title, artist })
+      .then((result) => {
+        // Only cache positive results, so misses can be retried later.
+        if (result.found) fs.writeFile(cacheFile, JSON.stringify(result), () => {});
+        sendJson(res, 200, result);
+      })
+      .catch((err) => {
+        console.error("tracks lookup failed: " + err.message);
+        sendJson(res, 502, { error: "tracklist lookup failed" });
+      });
     return;
   }
 
