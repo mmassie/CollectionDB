@@ -268,8 +268,28 @@
     }
 
     @media (max-width: 640px) {
-      .topbar { flex-wrap: wrap; }
+      /* Compact top bar: brand + actions on one row, search full-width below. */
+      .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+      .brand { font-size: 16px; }
+      .brand .dot { width: 26px; height: 26px; font-size: 14px; }
       .search { order: 3; max-width: none; flex-basis: 100%; }
+      #barcodeInput { padding: 10px 14px 10px 40px; font-size: 14px; }
+      .actions { gap: 6px; }
+      .btn { padding: 8px 12px; font-size: 13px; }
+      .btn.primary { padding: 8px 14px; }
+
+      /* Denser grid: ~3 albums per row instead of one. */
+      .content { padding: 4px 12px 96px; }
+      .heading { margin: 12px 4px 2px; gap: 8px; }
+      .heading h1 { font-size: 20px; }
+      #status { margin: 4px 4px 10px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
+      .card { padding: 8px; border-radius: 6px; }
+      .art-wrap { margin-bottom: 8px; }
+      .card .title { font-size: 12px; }
+      .card .artist { font-size: 11px; margin-top: 2px; }
+      .play { width: 34px; height: 34px; right: 6px; bottom: 6px; }
+      .badge { top: 13px; left: 13px; }
     }
   </style>
 </head>
