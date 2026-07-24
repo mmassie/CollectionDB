@@ -268,12 +268,12 @@
     }
 
     @media (max-width: 640px) {
-      /* Compact top bar: brand + actions on one row, search full-width below. */
-      .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
-      .brand { font-size: 16px; }
-      .brand .dot { width: 26px; height: 26px; font-size: 14px; }
-      .search { order: 3; max-width: none; flex-basis: 100%; }
-      #barcodeInput { padding: 10px 14px 10px 40px; font-size: 14px; }
+      /* Phones browse rather than scan: hide the barcode field, and enlarge the
+         title so it balances against the action buttons. */
+      .topbar { flex-wrap: wrap; gap: 8px; padding: 12px; }
+      .brand { font-size: 22px; }
+      .brand .dot { width: 32px; height: 32px; font-size: 17px; }
+      .search { display: none; }
       .actions { gap: 6px; }
       .btn { padding: 8px 12px; font-size: 13px; }
       .btn.primary { padding: 8px 14px; }
