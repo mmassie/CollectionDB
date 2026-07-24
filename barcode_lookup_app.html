@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music Catalog</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --bg-top: #000000;
+      --elevated: #181818;
+      --elevated-hover: #282828;
+      --pill: #242424;
+      --pill-hover: #2a2a2a;
+      --text: #ffffff;
+      --text-sub: #b3b3b3;
+      --green: #1db954;
+      --green-hover: #1ed760;
+      --shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- Top bar ---------- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 24px;
+      background: rgba(0,0,0,.85);
+      backdrop-filter: saturate(160%) blur(6px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 18px;
+      white-space: nowrap;
+    }
+    .brand .dot {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--green);
+      display: grid; place-items: center;
+      font-size: 16px;
+    }
+
+    .search {
+      position: relative;
+      flex: 1;
+      max-width: 460px;
+    }
+    .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: .7; }
+    #barcodeInput {
+      width: 100%;
+      padding: 12px 16px 12px 44px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: var(--pill);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: background .2s, border-color .2s;
+    }
+    #barcodeInput::placeholder { color: #a0a0a0; }
+    #barcodeInput:hover { background: var(--pill-hover); }
+    #barcodeInput:focus { border-color: #fff; background: var(--pill-hover); }
+
+    .actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--text-sub);
+      background: transparent;
+      transition: transform .1s, color .2s, background .2s;
+      white-space: nowrap;
+    }
+    .btn:hover { color: #fff; transform: scale(1.04); }
+    .btn.primary {
+      background: var(--green);
+      color: #000;
+      padding: 10px 20px;
+    }
+    .btn.primary:hover { background: var(--green-hover); transform: scale(1.04); }
+
+    /* ---------- Content ---------- */
+    .content { padding: 8px 24px 120px; }
+    .heading {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin: 20px 4px 6px;
+    }
+    .heading h1 { font-size: 26px; margin: 0; letter-spacing: -.01em; }
+    .count { color: var(--text-sub); font-size: 14px; }
+
+    #status {
+      min-height: 20px;
+      margin: 6px 4px 14px;
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+    #status.error { color: #f2545b; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      position: relative;
+      background: var(--elevated);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: background .3s ease;
+    }
+    .card:hover { background: var(--elevated-hover); }
+
+    .art-wrap { position: relative; margin-bottom: 14px; }
+    .art {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 6px;
+      object-fit: cover;
+      display: block;
+      box-shadow: var(--shadow);
+      background: #333;
+    }
+    .art.placeholder {
+      display: grid;
+      place-items: center;
+      font-size: 42px;
+      background: linear-gradient(135deg, #3a3a3a, #1f1f1f);
+      color: #6a6a6a;
+    }
+
+    /* Green play button that rises on hover, Spotify-style */
+    .play {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #000;
+      display: grid; place-items: center;
+      box-shadow: 0 8px 16px rgba(0,0,0,.5);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .3s, transform .3s, background .2s;
+      pointer-events: none;
+    }
+    .card:hover .play { opacity: 1; transform: translateY(0); }
+
+    .card .title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card .artist {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--text-sub);
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .badge {
+      position: absolute;
+      top: 22px; left: 22px;
+      z-index: 2;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      background: #f5a623;
+      color: #000;
+      border-radius: 4px;
+      padding: 3px 7px;
+    }
+
+    .card.flash { animation: flash 1.3s ease-out; }
+    @keyframes flash {
+      0%   { box-shadow: 0 0 0 2px var(--green-hover) inset; background: #1e3a26; }
+      100% { box-shadow: none; background: var(--elevated); }
+    }
+
+    .empty { color: var(--text-sub); padding: 40px 4px; font-size: 15px; }
+
+    /* ---------- Modal (Now Spinning) ---------- */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 20px;
+    }
+    .modal-content {
+      background: linear-gradient(180deg, #2a2a2a 0%, #181818 100%);
+      border-radius: 12px;
+      padding: 28px;
+      text-align: center;
+      width: 340px;
+      max-width: 100%;
+      box-shadow: 0 24px 60px rgba(0,0,0,.6);
+    }
+    .modal-content .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--green-hover);
+      margin-bottom: 18px;
+    }
+    #modalImg {
+      width: 220px; height: 220px;
+      object-fit: cover;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      background: #333;
+      margin: 0 auto 18px;
+      display: block;
+    }
+    #modalTitle { font-size: 20px; font-weight: 800; line-height: 1.25; }
+    #modalArtist { color: var(--text-sub); margin-top: 6px; font-size: 14px; }
+    .modal-content .btn { margin-top: 22px; }
+
+    @media (max-width: 640px) {
+      .topbar { flex-wrap: wrap; }
+      .search { order: 3; max-width: none; flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="dot">🎵</span> Music Catalog</div>
+
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input id="barcodeInput" autofocus placeholder="Scan a barcode…" />
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="dieRollBtn">🎲 Die Roll</button>
+      <button class="btn" id="reloadBtn">↻ Reload</button>
+      <button class="btn" id="exportBtn">Download backup</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="heading">
+      <h1>Your Collection</h1>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="status"></div>
+    <div id="results" class="grid"></div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="eyebrow">Next Up</div>
+      <img id="modalImg" />
+      <div id="modalTitle"></div>
+      <div id="modalArtist"></div>
+      <button class="btn primary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+
+<script>
+const CSV_FILE = "VinylScans.csv";
+
+// Cache of barcode -> product for API lookups, so we don't re-hit the API.
+const API_CACHE_KEY = "barcode_api_cache";
+const apiCache = JSON.parse(localStorage.getItem(API_CACHE_KEY) || "{}");
+
+// collection = rows loaded from VinylScans.csv (the source of truth).
+// newScans   = items scanned this session that are NOT yet in the CSV.
+let collection = [];
+let newScans = [];
+// Flat list mirroring what's rendered (newScans first), for click -> modal.
+let rendered = [];
+
+const input = document.getElementById("barcodeInput");
+const resultsDiv = document.getElementById("results");
+const statusDiv = document.getElementById("status");
+const countDiv = document.getElementById("count");
+
+loadCollection();
+
+// ---------- CSV loading ----------
+
+async function loadCollection() {
+  setStatus("Loading " + CSV_FILE + "…");
+  try {
+    const res = await fetch(CSV_FILE, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    collection = parseCsv(text);
+    setStatus("");
+    render();
+  } catch (err) {
+    console.error(err);
+    collection = [];
+    render();
+    setStatus(
+      "Could not load " + CSV_FILE + " (" + err.message + "). " +
+      "Open this page through the server: run  node server.js  in this folder, " +
+      "then visit http://localhost:8000/",
+      true
+    );
+  }
+}
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas,
+// escaped "" quotes, and CRLF/LF line endings. Assumes columns:
+// Barcode,Title,Artist,Image (header row skipped).
+function parseCsv(text) {
+  const rows = [];
+  let field = "";
+  let record = [];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      record.push(field); field = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      record.push(field); field = "";
+      if (record.length > 1 || record[0] !== "") rows.push(record);
+      record = [];
+    } else {
+      field += c;
+    }
+  }
+  // last field / record if no trailing newline
+  if (field !== "" || record.length) {
+    record.push(field);
+    if (record.length > 1 || record[0] !== "") rows.push(record);
+  }
+
+  if (!rows.length) return [];
+  // Drop header if present.
+  if (String(rows[0][0]).trim().toLowerCase() === "barcode") rows.shift();
+
+  return rows.map(r => ({
+    code: (r[0] || "").trim(),
+    title: (r[1] || "").trim(),
+    artist: (r[2] || "").trim(),
+    image: (r[3] || "").trim()
+  }));
+}
+
+// ---------- Scanning ----------
+
+input.addEventListener("keypress", async (e) => {
+  if (e.key !== "Enter") return;
+  const code = input.value.trim();
+  input.value = "";
+  if (!code) return;
+
+  // Already in the collection (from the CSV)?
+  const existing = collection.find(p => p.code === code);
+  if (existing) {
+    setStatus("Already in your collection: " + existing.title);
+    flashItem(code);
+    return;
+  }
+  // Already scanned this session?
+  if (newScans.find(p => p.code === code)) {
+    setStatus("Already scanned this session: " + code);
+    flashItem(code);
+    return;
+  }
+
+  let product = apiCache[code];
+  if (!product) {
+    setStatus("Looking up " + code + "…");
+    try {
+      const response = await fetch("/api/lookup?code=" + encodeURIComponent(code));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+      product = {
+        title: data.title || "Unknown Product",
+        artist: data.artist || "N/A",
+        image: data.image || ""
+      };
+      apiCache[code] = product;
+      localStorage.setItem(API_CACHE_KEY, JSON.stringify(apiCache));
+    } catch (err) {
+      console.error(err);
+      setStatus("Lookup failed for " + code + ": " + err.message, true);
+      return;
+    }
+  }
+
+  const album = { code, ...product };
+
+  // Try to save to the CSV via the server. If that fails (e.g. opened without
+  // the Node server), keep it in the session list marked "not saved".
+  try {
+    const save = await fetch("/api/albums", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(album)
+    });
+    if (!save.ok) throw new Error("HTTP " + save.status);
+    const result = await save.json();
+    collection.push(album);
+    render();
+    flashItem(code);
+    setStatus(
+      result.added
+        ? "Saved to CSV: " + product.title
+        : "Already in CSV, showing it: " + product.title
+    );
+  } catch (err) {
+    console.error(err);
+    newScans.push(album);
+    render();
+    flashItem(code);
+    setStatus("Added but NOT saved to CSV (server unreachable): " + product.title, true);
+  }
+});
+
+// ---------- Rendering ----------
+
+const PLAY_ICON =
+  '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
+// Route remote covers through the server's local cache; leave local paths as-is.
+function coverUrl(src) {
+  if (!src) return "";
+  return /^https?:\/\//i.test(src) ? "/cover?src=" + encodeURIComponent(src) : src;
+}
+
+function cardHtml(p, index, isNew) {
+  const art = p.image
+    ? `<img class="art" src="${escapeHtml(coverUrl(p.image))}" alt="" loading="lazy"
+          onerror="this.classList.add('placeholder');this.removeAttribute('src');this.textContent='🎵';">`
+    : `<div class="art placeholder">🎵</div>`;
+  return `
+    <div class="card" data-code="${escapeHtml(p.code)}" data-index="${index}" onclick="openAlbum(${index})">
+      ${isNew ? '<span class="badge">Not saved</span>' : ""}
+      <div class="art-wrap">
+        ${art}
+        <div class="play">${PLAY_ICON}</div>
+      </div>
+      <div class="title">${escapeHtml(p.title)}</div>
+      <div class="artist">${escapeHtml(p.artist || "—")}</div>
+    </div>`;
+}
+
+function render() {
+  rendered = [...newScans, ...collection];
+
+  if (!rendered.length) {
+    resultsDiv.innerHTML = '<div class="empty">No albums yet. Scan a barcode to get started.</div>';
+  } else {
+    resultsDiv.innerHTML = rendered.map((p, i) => cardHtml(p, i, i < newScans.length)).join("");
+  }
+
+  const total = collection.length;
+  const pending = newScans.length;
+  countDiv.textContent =
+    total + " album" + (total === 1 ? "" : "s") +
+    (pending ? "  •  " + pending + " unsaved" : "");
+}
+
+function openAlbum(index) {
+  const item = rendered[index];
+  if (item) showModal(item);
+}
+
+function flashItem(code) {
+  const el = resultsDiv.querySelector(`.card[data-code="${cssEscape(code)}"]`);
+  if (!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth; // restart animation
+  el.classList.add("flash");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function setStatus(msg, isError) {
+  statusDiv.textContent = msg || "";
+  statusDiv.className = isError ? "error" : "";
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function cssEscape(s) {
+  return String(s).replace(/["\\]/g, "\\$&");
+}
+
+// ---------- Modal ----------
+
+function showModal(item) {
+  const img = document.getElementById("modalImg");
+  if (item.image) { img.src = coverUrl(item.image); img.style.display = "block"; }
+  else { img.removeAttribute("src"); img.style.display = "none"; }
+  document.getElementById("modalTitle").innerText = item.title;
+  document.getElementById("modalArtist").innerText = item.artist || "";
+  document.getElementById("modal").style.display = "flex";
+}
+
+function closeModal() {
+  document.getElementById("modal").style.display = "none";
+}
+
+// Close modal when clicking the backdrop.
+document.getElementById("modal").addEventListener("click", (e) => {
+  if (e.target.id === "modal") closeModal();
+});
+
+// ---------- Buttons ----------
+
+document.getElementById("reloadBtn").onclick = () => loadCollection();
+
+document.getElementById("exportBtn").onclick = () => {
+  const all = [...collection, ...newScans];
+  const rows = [["Barcode", "Title", "Artist", "Image"]];
+  all.forEach(p => rows.push([p.code, p.title, p.artist, p.image]));
+
+  const csv = rows.map(r => r.map(csvField).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = CSV_FILE;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("Downloaded a backup copy of " + all.length + " rows.");
+};
+
+document.getElementById("dieRollBtn").onclick = () => {
+  const pool = [...collection, ...newScans];
+  if (!pool.length) return alert("Collection is empty");
+  showModal(pool[Math.floor(Math.random() * pool.length)]);
+};
+
+// Wrap a value as a CSV field (always quoted, "" for embedded quotes) to
+// match the existing VinylScans.csv format.
+function csvField(v) {
+  return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+}
+</script>
+</body>
+</html>

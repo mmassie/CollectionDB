@@ -1,0 +1,16 @@
+# Local cover-image cache — regenerated on demand from the image URLs in the CSV
+covers/
+
+# Personal music collection data — each user builds their own by scanning
+VinylScans.csv
+scans.csv
+
+# Unrelated scratch script (not part of this project)
+test.js
+
+# Secrets / environment
+.env
+
+# Node / OS
+node_modules/
+.DS_Store
