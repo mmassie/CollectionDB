@@ -17,9 +17,27 @@ const CSV_PATH = path.join(ROOT, "VinylScans.csv");
 const COVERS_DIR = path.join(ROOT, "covers");
 if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
 
+// Load KEY=VALUE pairs from a local, git-ignored .env file (if present) so a
+// plain `node server.js` works without exporting env vars every time.
+(function loadDotEnv() {
+  const envPath = path.join(ROOT, ".env");
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq === -1) continue;
+    const k = t.slice(0, eq).trim();
+    let v = t.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
+    }
+    if (!(k in process.env)) process.env[k] = v;
+  }
+})();
+
 // Barcode lookup API (https://rapidapi.com/). The key is read from the
-// environment so it never lives in a committed file:
-//   RAPID_API_KEY=your_key node server.js
+// environment (or the .env file above) so it never lives in a committed file.
 const API_HOST = "barcodes1.p.rapidapi.com";
 const RAPID_API_KEY = process.env.RAPID_API_KEY || "";
 

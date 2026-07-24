@@ -27,13 +27,17 @@ offline after the first load.
 ## Setup
 
 1. Get a RapidAPI key for the Barcodes Lookup API.
-2. Start the server with your key in the environment:
+2. Provide the key. Either put it in a local `.env` file (recommended):
 
    ```sh
-   RAPID_API_KEY=your_key_here node server.js
+   cp .env.example .env
+   # then edit .env and set RAPID_API_KEY=your_key_here
+   node server.js
    ```
 
-   (Or `export RAPID_API_KEY=your_key_here` once, then `node server.js`.)
+   ...or pass it inline: `RAPID_API_KEY=your_key_here node server.js`.
+
+   The `.env` file is git-ignored, so your key never gets committed.
 
 3. Open **http://localhost:8000/** in your browser.
 
