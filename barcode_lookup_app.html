@@ -62,7 +62,7 @@
       max-width: 460px;
     }
     .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: .7; }
-    #barcodeInput {
+    #filterInput {
       width: 100%;
       padding: 12px 16px 12px 44px;
       border-radius: 999px;
@@ -73,9 +73,9 @@
       outline: none;
       transition: background .2s, border-color .2s;
     }
-    #barcodeInput::placeholder { color: #a0a0a0; }
-    #barcodeInput:hover { background: var(--pill-hover); }
-    #barcodeInput:focus { border-color: #fff; background: var(--pill-hover); }
+    #filterInput::placeholder { color: #a0a0a0; }
+    #filterInput:hover { background: var(--pill-hover); }
+    #filterInput:focus { border-color: #fff; background: var(--pill-hover); }
 
     .actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
     .btn {
@@ -89,8 +89,12 @@
       background: transparent;
       transition: transform .1s, color .2s, background .2s;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+      font-family: inherit;
     }
-    .btn:hover { color: #fff; transform: scale(1.04); }
+    .btn:hover { color: #fff; transform: scale(1.04); text-decoration: none; }
     .btn.primary {
       background: var(--green);
       color: #000;
@@ -268,12 +272,11 @@
     }
 
     @media (max-width: 640px) {
-      /* Phones browse rather than scan: hide the barcode field, and enlarge the
-         title so it balances against the action buttons. */
+      /* Brand + actions on the first row, collection search full-width below. */
       .topbar { flex-wrap: wrap; gap: 8px; padding: 12px; }
-      .brand { font-size: 22px; }
-      .brand .dot { width: 32px; height: 32px; font-size: 17px; }
-      .search { display: none; }
+      .brand { font-size: 20px; }
+      .brand .dot { width: 30px; height: 30px; font-size: 16px; }
+      .search { order: 3; max-width: none; flex-basis: 100%; }
       .actions { gap: 6px; }
       .btn { padding: 8px 12px; font-size: 13px; }
       .btn.primary { padding: 8px 14px; }
@@ -302,11 +305,12 @@
            stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
       </svg>
-      <input id="barcodeInput" autofocus placeholder="Scan a barcode…" />
+      <input id="filterInput" autofocus placeholder="Search your collection…" />
     </div>
 
     <div class="actions">
       <button class="btn primary" id="dieRollBtn">🎲 Die Roll</button>
+      <a class="btn" href="/add.html">➕ Add by name</a>
       <button class="btn" id="reloadBtn">↻ Reload</button>
       <button class="btn" id="exportBtn">Download backup</button>
     </div>
@@ -335,21 +339,22 @@
 <script>
 const CSV_FILE = "VinylScans.csv";
 
-// Cache of barcode -> product for API lookups, so we don't re-hit the API.
-const API_CACHE_KEY = "barcode_api_cache";
-const apiCache = JSON.parse(localStorage.getItem(API_CACHE_KEY) || "{}");
-
 // collection = rows loaded from VinylScans.csv (the source of truth).
-// newScans   = items scanned this session that are NOT yet in the CSV.
 let collection = [];
-let newScans = [];
-// Flat list mirroring what's rendered (newScans first), for click -> modal.
+// Flat list of what's currently rendered (after filtering), for click -> modal.
 let rendered = [];
+let filterQuery = "";
 
-const input = document.getElementById("barcodeInput");
+const filterInput = document.getElementById("filterInput");
 const resultsDiv = document.getElementById("results");
 const statusDiv = document.getElementById("status");
 const countDiv = document.getElementById("count");
+
+// Live-filter the collection as you type.
+filterInput.addEventListener("input", (e) => {
+  filterQuery = e.target.value.trim().toLowerCase();
+  render();
+});
 
 loadCollection();
 
@@ -426,78 +431,6 @@ function parseCsv(text) {
   }));
 }
 
-// ---------- Scanning ----------
-
-input.addEventListener("keypress", async (e) => {
-  if (e.key !== "Enter") return;
-  const code = input.value.trim();
-  input.value = "";
-  if (!code) return;
-
-  // Already in the collection (from the CSV)?
-  const existing = collection.find(p => p.code === code);
-  if (existing) {
-    setStatus("Already in your collection: " + existing.title);
-    flashItem(code);
-    return;
-  }
-  // Already scanned this session?
-  if (newScans.find(p => p.code === code)) {
-    setStatus("Already scanned this session: " + code);
-    flashItem(code);
-    return;
-  }
-
-  let product = apiCache[code];
-  if (!product) {
-    setStatus("Looking up " + code + "…");
-    try {
-      const response = await fetch("/api/lookup?code=" + encodeURIComponent(code));
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
-      product = {
-        title: data.title || "Unknown Product",
-        artist: data.artist || "N/A",
-        image: data.image || ""
-      };
-      apiCache[code] = product;
-      localStorage.setItem(API_CACHE_KEY, JSON.stringify(apiCache));
-    } catch (err) {
-      console.error(err);
-      setStatus("Lookup failed for " + code + ": " + err.message, true);
-      return;
-    }
-  }
-
-  const album = { code, ...product };
-
-  // Try to save to the CSV via the server. If that fails (e.g. opened without
-  // the Node server), keep it in the session list marked "not saved".
-  try {
-    const save = await fetch("/api/albums", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(album)
-    });
-    if (!save.ok) throw new Error("HTTP " + save.status);
-    const result = await save.json();
-    collection.push(album);
-    render();
-    flashItem(code);
-    setStatus(
-      result.added
-        ? "Saved to CSV: " + product.title
-        : "Already in CSV, showing it: " + product.title
-    );
-  } catch (err) {
-    console.error(err);
-    newScans.push(album);
-    render();
-    flashItem(code);
-    setStatus("Added but NOT saved to CSV (server unreachable): " + product.title, true);
-  }
-});
-
 // ---------- Rendering ----------
 
 const PLAY_ICON =
@@ -509,14 +442,13 @@ function coverUrl(src) {
   return /^https?:\/\//i.test(src) ? "/cover?src=" + encodeURIComponent(src) : src;
 }
 
-function cardHtml(p, index, isNew) {
+function cardHtml(p, index) {
   const art = p.image
     ? `<img class="art" src="${escapeHtml(coverUrl(p.image))}" alt="" loading="lazy"
           onerror="this.classList.add('placeholder');this.removeAttribute('src');this.textContent='🎵';">`
     : `<div class="art placeholder">🎵</div>`;
   return `
     <div class="card" data-code="${escapeHtml(p.code)}" data-index="${index}" onclick="openAlbum(${index})">
-      ${isNew ? '<span class="badge">Not saved</span>' : ""}
       <div class="art-wrap">
         ${art}
         <div class="play">${PLAY_ICON}</div>
@@ -527,33 +459,30 @@ function cardHtml(p, index, isNew) {
 }
 
 function render() {
-  rendered = [...newScans, ...collection];
+  rendered = filterQuery
+    ? collection.filter(p =>
+        (p.title + " " + p.artist + " " + p.code).toLowerCase().includes(filterQuery))
+    : collection;
 
-  if (!rendered.length) {
-    resultsDiv.innerHTML = '<div class="empty">No albums yet. Scan a barcode to get started.</div>';
+  if (!collection.length) {
+    resultsDiv.innerHTML =
+      '<div class="empty">No albums yet. Use <a href="/add.html">Add</a> to build your collection.</div>';
+  } else if (!rendered.length) {
+    resultsDiv.innerHTML =
+      '<div class="empty">No albums match “' + escapeHtml(filterQuery) + '”.</div>';
   } else {
-    resultsDiv.innerHTML = rendered.map((p, i) => cardHtml(p, i, i < newScans.length)).join("");
+    resultsDiv.innerHTML = rendered.map((p, i) => cardHtml(p, i)).join("");
   }
 
   const total = collection.length;
-  const pending = newScans.length;
-  countDiv.textContent =
-    total + " album" + (total === 1 ? "" : "s") +
-    (pending ? "  •  " + pending + " unsaved" : "");
+  countDiv.textContent = filterQuery
+    ? rendered.length + " of " + total + " album" + (total === 1 ? "" : "s")
+    : total + " album" + (total === 1 ? "" : "s");
 }
 
 function openAlbum(index) {
   const item = rendered[index];
   if (item) showModal(item);
-}
-
-function flashItem(code) {
-  const el = resultsDiv.querySelector(`.card[data-code="${cssEscape(code)}"]`);
-  if (!el) return;
-  el.classList.remove("flash");
-  void el.offsetWidth; // restart animation
-  el.classList.add("flash");
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function setStatus(msg, isError) {
@@ -565,10 +494,6 @@ function escapeHtml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function cssEscape(s) {
-  return String(s).replace(/["\\]/g, "\\$&");
 }
 
 // ---------- Modal ----------
@@ -655,7 +580,7 @@ document.getElementById("modal").addEventListener("click", (e) => {
 document.getElementById("reloadBtn").onclick = () => loadCollection();
 
 document.getElementById("exportBtn").onclick = () => {
-  const all = [...collection, ...newScans];
+  const all = collection;
   const rows = [["Barcode", "Title", "Artist", "Image"]];
   all.forEach(p => rows.push([p.code, p.title, p.artist, p.image]));
 
@@ -672,7 +597,7 @@ document.getElementById("exportBtn").onclick = () => {
 };
 
 document.getElementById("dieRollBtn").onclick = () => {
-  const pool = [...collection, ...newScans];
+  const pool = collection;
   if (!pool.length) return alert("Collection is empty");
   showModal(pool[Math.floor(Math.random() * pool.length)]);
 };

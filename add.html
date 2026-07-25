@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add to Collection</title>
+  <style>
+    :root {
+      --bg: #121212; --elevated: #181818; --elevated-hover: #282828;
+      --pill: #242424; --pill-hover: #2a2a2a; --text: #fff; --text-sub: #b3b3b3;
+      --green: #1db954; --green-hover: #1ed760; --shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--green-hover); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 24px; background: rgba(0,0,0,.85);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+    .brand .dot { width: 30px; height: 30px; border-radius: 50%; background: var(--green);
+                  display: grid; place-items: center; font-size: 16px; }
+    .back { margin-left: auto; font-size: 14px; font-weight: 700; }
+
+    .content { padding: 20px 24px 120px; max-width: 900px; }
+    h1 { font-size: 26px; margin: 8px 4px 4px; }
+    .sub { color: var(--text-sub); font-size: 14px; margin: 0 4px 20px; }
+    .section {
+      font-size: 13px; font-weight: 700; color: var(--text-sub);
+      text-transform: uppercase; letter-spacing: .07em; margin: 26px 4px 10px;
+    }
+    .scan {
+      width: 100%; max-width: 460px; padding: 12px 16px; border-radius: 999px;
+      border: 1px solid transparent; background: var(--pill); color: var(--text);
+      font-size: 15px; outline: none;
+    }
+    .scan:hover { background: var(--pill-hover); }
+    .scan:focus { border-color: #fff; background: var(--pill-hover); }
+
+    form.search-form {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      margin: 0 0 6px;
+    }
+    .field { flex: 1; min-width: 180px; }
+    .field label { display: block; font-size: 12px; color: var(--text-sub); margin: 0 0 4px 4px; }
+    .field input {
+      width: 100%; padding: 12px 16px; border-radius: 999px; border: 1px solid transparent;
+      background: var(--pill); color: var(--text); font-size: 15px; outline: none;
+    }
+    .field input:hover { background: var(--pill-hover); }
+    .field input:focus { border-color: #fff; background: var(--pill-hover); }
+    .vinyl { display: flex; align-items: center; gap: 8px; color: var(--text-sub); font-size: 14px; white-space: nowrap; }
+    .vinyl input { width: 16px; height: 16px; accent-color: var(--green); }
+
+    .btn {
+      border: none; border-radius: 999px; padding: 12px 22px; font-size: 14px; font-weight: 700;
+      cursor: pointer; background: var(--green); color: #000; transition: transform .1s, background .2s;
+    }
+    .btn:hover { background: var(--green-hover); transform: scale(1.03); }
+    .btn:disabled { opacity: .5; cursor: default; transform: none; }
+    .btn.ghost { background: transparent; color: var(--text-sub); }
+    .btn.ghost:hover { color: #fff; background: var(--elevated-hover); }
+    .btn.small { padding: 9px 16px; font-size: 13px; }
+
+    #status { min-height: 22px; margin: 12px 4px; font-size: 14px; color: var(--text-sub); }
+    #status.error { color: #f2545b; }
+    #status.ok { color: var(--green-hover); }
+
+    .results { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .row {
+      display: flex; gap: 16px; align-items: center;
+      background: var(--elevated); border-radius: 10px; padding: 12px 14px;
+      transition: background .2s;
+    }
+    .row:hover { background: var(--elevated-hover); }
+    .row.added { opacity: .6; }
+    .thumb {
+      width: 64px; height: 64px; flex: none; border-radius: 6px; object-fit: cover;
+      background: linear-gradient(135deg, #3a3a3a, #1f1f1f);
+      box-shadow: var(--shadow);
+    }
+    .thumb.placeholder { display: grid; place-items: center; font-size: 26px; color: #6a6a6a; }
+    .meta { flex: 1; min-width: 0; }
+    .meta .t { font-weight: 700; font-size: 15px; }
+    .meta .a { color: var(--text-sub); font-size: 13px; margin-top: 2px; }
+    .meta .d { color: #8a8a8a; font-size: 12px; margin-top: 4px; }
+    .meta .bc { color: #8a8a8a; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .no-bc { color: #7a6a3a; }
+    .row .btn { flex: none; }
+
+    .manual { margin: 18px 4px 0; color: var(--text-sub); font-size: 14px; }
+
+    @media (max-width: 640px) {
+      .topbar { padding: 12px; }
+      .content { padding: 16px 12px 100px; }
+      h1 { font-size: 22px; }
+      .row { flex-wrap: wrap; }
+      .row .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="dot">➕</span> Add to Collection</div>
+    <a class="back" href="/">← Catalog</a>
+  </div>
+
+  <div class="content">
+    <h1>Add to your collection</h1>
+    <p class="sub">Scan a barcode, or search by name for records whose barcode doesn't scan. Either way it's appended to your collection.</p>
+
+    <h2 class="section">Scan a barcode</h2>
+    <input id="scanInput" class="scan" placeholder="Scan or type a barcode, then Enter" autocomplete="off" autofocus />
+
+    <h2 class="section">Search by name</h2>
+    <form class="search-form" id="searchForm">
+      <div class="field">
+        <label for="artist">Artist / band</label>
+        <input id="artist" placeholder="e.g. Fleetwood Mac" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="album">Album</label>
+        <input id="album" placeholder="e.g. Rumours" autocomplete="off" />
+      </div>
+      <label class="vinyl"><input type="checkbox" id="vinylOnly" checked /> Vinyl only</label>
+      <button class="btn" type="submit" id="searchBtn">Search</button>
+    </form>
+
+    <div id="status"></div>
+    <div class="results" id="results"></div>
+
+    <div class="manual" id="manual"></div>
+  </div>
+
+<script>
+const scanEl = document.getElementById("scanInput");
+const artistEl = document.getElementById("artist");
+const albumEl = document.getElementById("album");
+const vinylEl = document.getElementById("vinylOnly");
+const resultsEl = document.getElementById("results");
+const statusEl = document.getElementById("status");
+const manualEl = document.getElementById("manual");
+
+let addedCount = 0;
+let lastResults = [];
+
+document.getElementById("searchForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  runSearch();
+});
+
+// Barcode scan: look it up, then save. Keeps focus for the next scan.
+scanEl.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  const code = scanEl.value.trim();
+  scanEl.value = "";
+  if (!code) return;
+  setStatus("Looking up " + code + "…");
+  try {
+    const r = await fetch("/api/lookup?code=" + encodeURIComponent(code));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    await saveAlbum(
+      { code, title: d.title, artist: d.artist, image: d.image },
+      null, null, { fromScan: true }
+    );
+  } catch (err) {
+    console.error(err);
+    setStatus("Scan failed for " + code + ": " + err.message, "error");
+  }
+  scanEl.focus();
+});
+
+async function runSearch() {
+  const artist = artistEl.value.trim();
+  const album = albumEl.value.trim();
+  if (!artist && !album) { setStatus("Enter an artist and/or album.", "error"); return; }
+
+  resultsEl.innerHTML = "";
+  manualEl.innerHTML = "";
+  setStatus("Searching…");
+
+  const params = new URLSearchParams();
+  if (artist) params.set("artist", artist);
+  if (album) params.set("album", album);
+
+  try {
+    const res = await fetch("/api/search?" + params.toString());
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    let results = data.results || [];
+    const totalFound = results.length;
+    if (vinylEl.checked) {
+      results = results.filter(r => /vinyl/i.test(r.format || ""));
+    }
+    lastResults = results;
+    renderResults(lastResults);
+    if (!lastResults.length) {
+      setStatus(
+        vinylEl.checked && totalFound
+          ? `No vinyl pressings found (${totalFound} other formats). Uncheck “Vinyl only” to see them.`
+          : "No matches found.",
+        "error"
+      );
+    } else {
+      setStatus(lastResults.length + " match" + (lastResults.length === 1 ? "" : "es") + ". Pick the right pressing.");
+    }
+    renderManualOption(artist, album);
+  } catch (err) {
+    console.error(err);
+    setStatus("Search failed: " + err.message, "error");
+  }
+}
+
+function renderResults(results) {
+  resultsEl.innerHTML = results.map((r, i) => {
+    const bits = [];
+    if (r.date) bits.push(escapeHtml(r.date.slice(0, 4)));
+    if (r.country) bits.push(escapeHtml(r.country));
+    if (r.format) bits.push(escapeHtml(r.format));
+    if (r.trackCount) bits.push(r.trackCount + " tracks");
+    const bc = r.barcode
+      ? `<span class="bc">Barcode: ${escapeHtml(r.barcode)}</span>`
+      : `<span class="no-bc">No barcode</span>`;
+    return `
+      <div class="row" data-i="${i}">
+        <img class="thumb" src="${escapeHtml(r.thumb)}" alt="" loading="lazy"
+             onerror="this.classList.add('placeholder');this.removeAttribute('src');this.textContent='🎵';this.dataset.noart='1';">
+        <div class="meta">
+          <div class="t">${escapeHtml(r.title || "Untitled")}</div>
+          <div class="a">${escapeHtml(r.artist || "")}</div>
+          <div class="d">${bits.join(" • ")}</div>
+          <div>${bc}</div>
+        </div>
+        <button class="btn small" onclick="addResult(${i}, this)">Add</button>
+      </div>`;
+  }).join("");
+}
+
+function renderManualOption(artist, album) {
+  if (!album && !artist) return;
+  const label = [artist, album].filter(Boolean).join(" — ");
+  manualEl.innerHTML =
+    `Not listed? <button class="btn ghost small" onclick="addManual()">Add “${escapeHtml(label)}” with no cover</button>`;
+}
+
+async function addResult(i, btn) {
+  const r = lastResults[i];
+  if (!r) return;
+  const row = btn.closest(".row");
+  const img = row.querySelector(".thumb");
+  const hasArt = !(img && img.dataset.noart === "1");
+  await saveAlbum({
+    code: r.barcode || "",
+    title: r.title,
+    artist: r.artist,
+    image: hasArt ? r.image : ""
+  }, btn, row);
+}
+
+async function addManual() {
+  const artist = artistEl.value.trim();
+  const album = albumEl.value.trim();
+  if (!album) { setStatus("Type an album title to add manually.", "error"); return; }
+  await saveAlbum({ code: "", title: album, artist: artist, image: "" }, null, null);
+}
+
+async function saveAlbum(album, btn, row, opts = {}) {
+  if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
+  try {
+    const res = await fetch("/api/albums", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(album)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+
+    if (data.added === false && data.reason === "duplicate") {
+      setStatus("Already in your collection: " + album.title, "ok");
+      if (btn) { btn.textContent = "In collection"; }
+      if (row) row.classList.add("added");
+      return;
+    }
+    addedCount++;
+    if (btn) btn.textContent = "✓ Added";
+    if (row) row.classList.add("added");
+
+    if (opts.fromScan) {
+      setStatus(`Scanned & added “${album.title}”. ${addedCount} added this session.`, "ok");
+    } else {
+      setStatus(`Added “${album.title}”. ${addedCount} added this session — search the next one.`, "ok");
+      // Clear the name search for the next album.
+      artistEl.value = "";
+      albumEl.value = "";
+      resultsEl.innerHTML = "";
+      manualEl.innerHTML = "";
+      lastResults = [];
+      artistEl.focus();
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus("Couldn't save: " + err.message, "error");
+    if (btn) { btn.disabled = false; btn.textContent = "Add"; }
+  }
+}
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg || "";
+  statusEl.className = kind || "";
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+</script>
+</body>
+</html>

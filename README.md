@@ -1,18 +1,28 @@
 # Music Catalog
 
-A tiny single-page app for cataloging a record/music collection by scanning
-barcodes. Scans are looked up online and saved to a local CSV; a Spotify-style
-grid shows your collection, with album covers cached locally so it works
-offline after the first load.
+A tiny app for cataloging a record/music collection. The home page is a
+Spotify-style grid of your collection with a live search; a separate **Add**
+page handles all data entry (barcode scanning and add-by-name). Everything is
+saved to a local CSV, with album covers cached locally so it works offline after
+the first load.
 
 ![Spotify-style grid of album covers](#)
 
 ## Features
 
-- **Scan barcodes** (USB scanner or phone camera keyboard) to add albums.
-- **Auto-saves** every scan to `VinylScans.csv` — no export step.
-- **Hand-editable CSV**: add albums with no barcode by editing the CSV directly
-  (leave the `Barcode` column empty) and clicking **Reload**.
+Home page (`/`) — browse your collection:
+- **Search your collection** — filter the grid live by title, artist, or barcode.
+- **Local cover cache** and **tracklists** (see below).
+- **Die Roll**: pick a random album to play next.
+
+Add page (`/add.html`) — everything that adds to the collection:
+- **Scan barcodes** (USB scanner or phone camera keyboard); each scan is looked
+  up online and **auto-saved** to `VinylScans.csv` — no export step.
+- **Add by name**: for records whose barcode won't scan, search MusicBrainz by
+  artist + album and pick the right pressing (vinyl-only filter, cover art,
+  year, and barcode when known).
+- **Hand-editable CSV**: alternatively, add albums by editing the CSV directly
+  (leave the `Barcode` column empty) and clicking **Reload** on the home page.
 - **Local cover cache**: album art is downloaded once into `covers/` and served
   from disk thereafter.
 - **Tracklists**: click an album to see its tracklist, fetched from
@@ -49,18 +59,19 @@ scan from a phone on the same network.
 
 ## Usage
 
-- Click the search box and scan a barcode (or type it and press Enter). The
-  album is looked up, added to the grid, and saved to `VinylScans.csv`.
-- To add an album **without a barcode**, open `VinylScans.csv` in any editor and
-  add a row, leaving the first column empty:
+- **Browse/search** on the home page: type in the search box to filter your
+  collection; click any album to see its cover and tracklist; **Die Roll** picks
+  one at random.
+- **Add albums** on the **Add** page (button in the top bar, or `/add.html`):
+  - *Scan a barcode* — the album is looked up and saved to `VinylScans.csv`.
+  - *Search by name* — for records whose barcode won't scan; pick the matching
+    release and it's appended.
+- To add an album **by hand**, open `VinylScans.csv` in any editor and add a row,
+  leaving the first column empty, then click **Reload** on the home page:
 
   ```csv
   "","Album Title","Artist Name","https://optional-cover-url.jpg"
   ```
-
-  Then click **Reload** in the app.
-- Click any album to see it in the "Next Up" view; **Die Roll** picks one at
-  random.
 
 ## Data & privacy
 
@@ -75,7 +86,8 @@ scan from a phone on the same network.
 | File                     | Purpose                                        |
 | ------------------------ | ---------------------------------------------- |
 | `barcode_lookup_app.html`| The single-page app (UI + client logic).       |
-| `server.js`              | Static server + `/api/lookup`, `/api/albums`, `/api/tracks`, `/cover`. |
+| `add.html`               | Add-by-name page (search MusicBrainz, append picks). |
+| `server.js`              | Static server + `/api/lookup`, `/api/albums`, `/api/search`, `/api/tracks`, `/cover`. |
 | `VinylScans.csv`         | Your collection (git-ignored, auto-created).   |
 | `covers/`                | Local cover-image cache (git-ignored).         |
 | `trackcache/`            | Local tracklist cache (git-ignored).           |

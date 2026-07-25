@@ -280,6 +280,49 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---- Search releases by artist/album (MusicBrainz) ----
+  if (req.method === "GET" && req.url.startsWith("/api/search?")) {
+    const q = new URLSearchParams(req.url.slice(req.url.indexOf("?") + 1));
+    const artist = (q.get("artist") || "").trim();
+    const album = (q.get("album") || "").trim();
+    if (!artist && !album) return sendJson(res, 400, { error: "need artist or album" });
+
+    // Note: MusicBrainz's format: filter is unreliable (its values contain a
+    // quote, e.g. '12" Vinyl', which breaks the query parser), so format
+    // filtering is done client-side on the returned `format` field instead.
+    const parts = [];
+    if (album) parts.push('release:"' + album.replace(/"/g, "") + '"');
+    if (artist) parts.push('artist:"' + artist.replace(/"/g, "") + '"');
+    const mbq = "/ws/2/release?query=" + encodeURIComponent(parts.join(" AND ")) + "&fmt=json&limit=25";
+
+    mbGetThrottled(mbq)
+      .then((data) => {
+        const results = (data.releases || []).map((r) => {
+          const artistName = (r["artist-credit"] || [])
+            .map((a) => a.name + (a.joinphrase || "")).join("");
+          const media = r.media || [];
+          return {
+            mbid: r.id,
+            title: r.title,
+            artist: artistName,
+            date: r.date || "",
+            country: r.country || "",
+            barcode: r.barcode || "",
+            format: media.map((m) => m.format).filter(Boolean).join(" + "),
+            trackCount: media.reduce((n, m) => n + (m["track-count"] || 0), 0),
+            image: "https://coverartarchive.org/release/" + r.id + "/front-500",
+            thumb: "https://coverartarchive.org/release/" + r.id + "/front-250"
+          };
+        });
+        sendJson(res, 200, { results });
+      })
+      .catch((err) => {
+        console.error("search failed: " + err.message);
+        sendJson(res, 502, { error: "search failed" });
+      });
+    return;
+  }
+
   // ---- Tracklist lookup (MusicBrainz), cached on disk ----
   if (req.method === "GET" && req.url.startsWith("/api/tracks?")) {
     const q = new URLSearchParams(req.url.slice(req.url.indexOf("?") + 1));
