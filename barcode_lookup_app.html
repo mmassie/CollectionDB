@@ -48,6 +48,7 @@
       font-weight: 800;
       font-size: 18px;
       white-space: nowrap;
+      flex: none;
     }
     .brand .dot {
       width: 30px; height: 30px; border-radius: 50%;
@@ -58,7 +59,8 @@
 
     .search {
       position: relative;
-      flex: 1;
+      flex: 1 1 140px;
+      min-width: 0;
       max-width: 460px;
     }
     .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: .7; }
@@ -77,7 +79,7 @@
     #filterInput:hover { background: var(--pill-hover); }
     #filterInput:focus { border-color: #fff; background: var(--pill-hover); }
 
-    .actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+    .actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: nowrap; flex: none; }
     .btn {
       border: none;
       border-radius: 999px;
@@ -101,6 +103,7 @@
       padding: 10px 20px;
     }
     .btn.primary:hover { background: var(--green-hover); transform: scale(1.04); }
+    .btn.icon { padding: 10px 13px; font-size: 16px; }
 
     /* ---------- Content ---------- */
     .content { padding: 8px 24px 120px; }
@@ -277,7 +280,7 @@
       .brand { font-size: 20px; }
       .brand .dot { width: 30px; height: 30px; font-size: 16px; }
       .search { order: 3; max-width: none; flex-basis: 100%; }
-      .actions { gap: 6px; }
+      .actions { gap: 6px; flex-wrap: wrap; }
       .btn { padding: 8px 12px; font-size: 13px; }
       .btn.primary { padding: 8px 14px; }
 
@@ -310,9 +313,8 @@
 
     <div class="actions">
       <button class="btn primary" id="dieRollBtn">🎲 Die Roll</button>
-      <a class="btn" href="/add.html">➕ Add by name</a>
-      <button class="btn" id="reloadBtn">↻ Reload</button>
-      <button class="btn" id="exportBtn">Download backup</button>
+      <a class="btn" href="/add.html">➕ Add</a>
+      <button class="btn icon" id="reloadBtn" title="Reload from CSV" aria-label="Reload from CSV">↻</button>
     </div>
   </div>
 
@@ -367,6 +369,7 @@ async function loadCollection() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const text = await res.text();
     collection = parseCsv(text);
+    sortCollection();
     setStatus("");
     render();
   } catch (err) {
@@ -380,6 +383,20 @@ async function loadCollection() {
       true
     );
   }
+}
+
+// Sort the collection by artist A–Z, then title. Rows with a blank or "N/A"
+// artist fall back to their title so they don't clump together.
+function primaryKey(p) {
+  const a = (p.artist || "").trim();
+  return a && a.toUpperCase() !== "N/A" ? a : (p.title || "");
+}
+function sortCollection() {
+  const opts = { sensitivity: "base", numeric: true };
+  collection.sort((x, y) => {
+    const c = primaryKey(x).localeCompare(primaryKey(y), undefined, opts);
+    return c !== 0 ? c : (x.title || "").localeCompare(y.title || "", undefined, opts);
+  });
 }
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas,
@@ -579,34 +596,11 @@ document.getElementById("modal").addEventListener("click", (e) => {
 
 document.getElementById("reloadBtn").onclick = () => loadCollection();
 
-document.getElementById("exportBtn").onclick = () => {
-  const all = collection;
-  const rows = [["Barcode", "Title", "Artist", "Image"]];
-  all.forEach(p => rows.push([p.code, p.title, p.artist, p.image]));
-
-  const csv = rows.map(r => r.map(csvField).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = CSV_FILE;
-  a.click();
-  URL.revokeObjectURL(url);
-  setStatus("Downloaded a backup copy of " + all.length + " rows.");
-};
-
 document.getElementById("dieRollBtn").onclick = () => {
   const pool = collection;
   if (!pool.length) return alert("Collection is empty");
   showModal(pool[Math.floor(Math.random() * pool.length)]);
 };
-
-// Wrap a value as a CSV field (always quoted, "" for embedded quotes) to
-// match the existing VinylScans.csv format.
-function csvField(v) {
-  return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-}
 </script>
 </body>
 </html>
