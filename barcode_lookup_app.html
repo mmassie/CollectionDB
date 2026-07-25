@@ -275,12 +275,13 @@
     }
 
     @media (max-width: 640px) {
-      /* Brand + actions on the first row, collection search full-width below. */
-      .topbar { flex-wrap: wrap; gap: 8px; padding: 12px; }
-      .brand { font-size: 20px; }
-      .brand .dot { width: 30px; height: 30px; font-size: 16px; }
+      /* Icon-only brand on the left, actions on the right, search full-width
+         below — keeps the header to two clean rows on a phone. */
+      .topbar { flex-wrap: wrap; gap: 10px; padding: 12px; }
+      .brand-text { display: none; }
+      .brand .dot { width: 34px; height: 34px; font-size: 18px; }
       .search { order: 3; max-width: none; flex-basis: 100%; }
-      .actions { gap: 6px; flex-wrap: wrap; }
+      .actions { gap: 8px; flex-wrap: nowrap; }
       .btn { padding: 8px 12px; font-size: 13px; }
       .btn.primary { padding: 8px 14px; }
 
@@ -301,7 +302,7 @@
 </head>
 <body>
   <div class="topbar">
-    <div class="brand"><span class="dot">🎵</span> Music Catalog</div>
+    <div class="brand"><span class="dot">🎵</span> <span class="brand-text">Music Catalog</span></div>
 
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"
@@ -391,11 +392,15 @@ function primaryKey(p) {
   const a = (p.artist || "").trim();
   return a && a.toUpperCase() !== "N/A" ? a : (p.title || "");
 }
+// Record-store filing: ignore a leading article ("The Police" files under P).
+function sortName(s) {
+  return String(s || "").trim().toLowerCase().replace(/^(the|a|an)\s+/, "");
+}
 function sortCollection() {
-  const opts = { sensitivity: "base", numeric: true };
+  const opts = { numeric: true };
   collection.sort((x, y) => {
-    const c = primaryKey(x).localeCompare(primaryKey(y), undefined, opts);
-    return c !== 0 ? c : (x.title || "").localeCompare(y.title || "", undefined, opts);
+    const c = sortName(primaryKey(x)).localeCompare(sortName(primaryKey(y)), undefined, opts);
+    return c !== 0 ? c : sortName(x.title).localeCompare(sortName(y.title), undefined, opts);
   });
 }
 
